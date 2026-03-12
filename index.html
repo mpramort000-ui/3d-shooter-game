@@ -2,7 +2,7 @@
 <html>
 <head>
 
-<title>3D Shooter Game</title>
+<title>3D FPS Shooter</title>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
 
@@ -11,6 +11,7 @@
 body{
 margin:0;
 overflow:hidden;
+background:black;
 }
 
 #score{
@@ -19,6 +20,17 @@ top:10px;
 left:10px;
 color:white;
 font-size:24px;
+font-family:Arial;
+}
+
+#crosshair{
+position:absolute;
+left:50%;
+top:50%;
+width:10px;
+height:10px;
+background:white;
+transform:translate(-50%,-50%);
 }
 
 </style>
@@ -28,46 +40,59 @@ font-size:24px;
 <body>
 
 <div id="score">Score: 0</div>
+<div id="crosshair"></div>
 
 <script>
 
-const scene = new THREE.Scene()
+let scene = new THREE.Scene()
 
-const camera = new THREE.PerspectiveCamera(
+let camera = new THREE.PerspectiveCamera(
 75,
 window.innerWidth/window.innerHeight,
 0.1,
 1000
 )
 
-const renderer = new THREE.WebGLRenderer()
+let renderer = new THREE.WebGLRenderer()
 renderer.setSize(window.innerWidth,window.innerHeight)
 document.body.appendChild(renderer.domElement)
 
-camera.position.z = 5
+camera.position.y=1.6
 
-const light = new THREE.PointLight(0xffffff,1)
-light.position.set(10,10,10)
+// light
+let light = new THREE.HemisphereLight(0xffffff,0x444444)
 scene.add(light)
 
-const playerGeo = new THREE.BoxGeometry(1,1,1)
-const playerMat = new THREE.MeshStandardMaterial({color:0x00ff00})
-const player = new THREE.Mesh(playerGeo,playerMat)
+// floor
+let floorGeo = new THREE.PlaneGeometry(100,100)
+let floorMat = new THREE.MeshStandardMaterial({color:0x333333})
 
-scene.add(player)
+let floor = new THREE.Mesh(floorGeo,floorMat)
+floor.rotation.x=-Math.PI/2
+scene.add(floor)
 
+// player movement
+let speed=0.15
+let keys={}
+
+document.addEventListener("keydown",e=>keys[e.key]=true)
+document.addEventListener("keyup",e=>keys[e.key]=false)
+
+// bullets
 let bullets=[]
 let enemies=[]
 let score=0
 
 function shoot(){
 
-const geo = new THREE.SphereGeometry(0.1)
-const mat = new THREE.MeshBasicMaterial({color:0xffff00})
+let geo=new THREE.SphereGeometry(0.1)
+let mat=new THREE.MeshBasicMaterial({color:0xffff00})
 
-const bullet = new THREE.Mesh(geo,mat)
+let bullet=new THREE.Mesh(geo,mat)
 
-bullet.position.copy(player.position)
+bullet.position.copy(camera.position)
+
+bullet.velocity=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion)
 
 scene.add(bullet)
 
@@ -77,16 +102,17 @@ bullets.push(bullet)
 
 document.addEventListener("click",shoot)
 
+// enemy spawn
 function spawnEnemy(){
 
-const geo = new THREE.BoxGeometry(1,1,1)
-const mat = new THREE.MeshStandardMaterial({color:0xff0000})
+let geo=new THREE.BoxGeometry(1,1,1)
+let mat=new THREE.MeshStandardMaterial({color:0xff0000})
 
-const enemy = new THREE.Mesh(geo,mat)
+let enemy=new THREE.Mesh(geo,mat)
 
-enemy.position.x=(Math.random()-0.5)*10
-enemy.position.y=(Math.random()-0.5)*5
-enemy.position.z=-20
+enemy.position.x=(Math.random()-0.5)*20
+enemy.position.z=-20-Math.random()*20
+enemy.position.y=0.5
 
 scene.add(enemy)
 
@@ -94,19 +120,63 @@ enemies.push(enemy)
 
 }
 
-setInterval(spawnEnemy,1500)
+setInterval(spawnEnemy,2000)
 
+// movement
+function updateMovement(){
+
+if(keys["w"]) camera.position.z-=speed
+if(keys["s"]) camera.position.z+=speed
+if(keys["a"]) camera.position.x-=speed
+if(keys["d"]) camera.position.x+=speed
+
+}
+
+// collision
+function checkHit(){
+
+bullets.forEach((b,bi)=>{
+
+enemies.forEach((e,ei)=>{
+
+let dist=b.position.distanceTo(e.position)
+
+if(dist<1){
+
+scene.remove(e)
+scene.remove(b)
+
+enemies.splice(ei,1)
+bullets.splice(bi,1)
+
+score++
+
+document.getElementById("score").innerText="Score: "+score
+
+}
+
+})
+
+})
+
+}
+
+// game loop
 function animate(){
 
 requestAnimationFrame(animate)
 
+updateMovement()
+
 bullets.forEach(b=>{
-b.position.z-=0.5
+b.position.add(b.velocity.clone().multiplyScalar(0.5))
 })
 
 enemies.forEach(e=>{
-e.position.z+=0.1
+e.position.z+=0.03
 })
+
+checkHit()
 
 renderer.render(scene,camera)
 
